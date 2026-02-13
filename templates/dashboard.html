@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ project_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <div class="bg-shape shape-a"></div>
+    <div class="bg-shape shape-b"></div>
+    <div class="bg-shape shape-c"></div>
+
+    <main class="layout">
+      <header class="hero panel">
+        <div>
+          <p class="eyebrow">Birthday Dashboard</p>
+          <h1>{{ project_name }}</h1>
+          <p class="subtitle">今天是 {{ today.isoformat() }}，把祝福准时送达。</p>
+        </div>
+      </header>
+
+      {% if success_message %}
+      <section class="flash flash-success panel">{{ success_message }}</section>
+      {% endif %}
+      {% if error_message %}
+      <section class="flash flash-error panel">{{ error_message }}</section>
+      {% endif %}
+
+      <section class="stats-grid">
+        <article class="stat panel">
+          <p class="label">总好友数</p>
+          <p class="value">{{ total_count }}</p>
+        </article>
+        <article class="stat panel">
+          <p class="label">今天生日</p>
+          <p class="value">{{ due_today|length }}</p>
+        </article>
+        <article class="stat panel">
+          <p class="label">阳历</p>
+          <p class="value">{{ solar_count }}</p>
+        </article>
+        <article class="stat panel">
+          <p class="label">农历</p>
+          <p class="value">{{ lunar_count }}</p>
+        </article>
+      </section>
+
+      <section class="grid-two">
+        <article class="panel" id="editor">
+          <h2>{{ "编辑好友生日" if edit_target else "添加好友生日" }}</h2>
+          <form
+            method="post"
+            action="{{ url_for('update_entry', entry_id=edit_target.id) if edit_target else url_for('add_entry') }}"
+            class="form-grid"
+          >
+            <label>
+              姓名
+              <input name="name" placeholder="例如：小明" value="{{ edit_target.name if edit_target else '' }}" required />
+            </label>
+            <label>
+              日历
+              <select name="calendar" required>
+                <option value="solar" {% if edit_target and edit_target.calendar == "solar" %}selected{% endif %}>阳历</option>
+                <option value="lunar" {% if edit_target and edit_target.calendar == "lunar" %}selected{% endif %}>农历</option>
+              </select>
+            </label>
+            <label>
+              生日（MM-DD）
+              <input
+                name="date"
+                placeholder="08-19"
+                pattern="\d{2}-\d{2}"
+                value="{{ '%02d-%02d'|format(edit_target.month, edit_target.day) if edit_target else '' }}"
+                required
+              />
+            </label>
+            <label>
+              备注
+              <input name="note" placeholder="同学/同事/家人" value="{{ edit_target.note if edit_target else '' }}" />
+            </label>
+            <label class="checkline">
+              <input
+                type="checkbox"
+                name="leap_month"
+                {% if edit_target and edit_target.calendar == "lunar" and edit_target.leap_month %}checked{% endif %}
+              />
+              农历闰月（只有生日是“闰X月”才勾选）
+            </label>
+            <p class="muted hint">示例：闰四月初二需要勾选；四月初二不需要勾选。</p>
+            <div class="action-row">
+              <button class="btn" type="submit">{{ "保存修改" if edit_target else "保存" }}</button>
+              {% if edit_target %}
+              <a class="btn btn-ghost" href="{{ url_for('index') }}">取消编辑</a>
+              {% endif %}
+            </div>
+          </form>
+        </article>
+
+        <article class="panel">
+          <h2>今天要祝福的人</h2>
+          {% if due_today %}
+          <ul class="list">
+            {% for entry in due_today %}
+            <li>
+              <strong>{{ entry.name }}</strong>
+              <span>{{ "农历" if entry.calendar == "lunar" else "阳历" }} {{ "%02d-%02d"|format(entry.month, entry.day) }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="muted">今天没有生日提醒。</p>
+          {% endif %}
+
+          <h3>未来 30 天</h3>
+          {% if upcoming_30 %}
+          <ul class="list compact">
+            {% for when, entry in upcoming_30 %}
+            <li>
+              <span>{{ when.isoformat() }}</span>
+              <strong>{{ entry.name }}</strong>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="muted">未来 30 天没有生日。</p>
+          {% endif %}
+        </article>
+      </section>
+
+      <section class="panel">
+        <h2>未来 12 个月分布</h2>
+        <div class="chart">
+          {% for item in month_chart %}
+          <div class="bar-wrap" title="{{ item.label }}: {{ item.count }}">
+            <div class="bar" style="height: {{ item.height }}px"></div>
+            <p>{{ item.label[5:] }}</p>
+            <small>{{ item.count }}</small>
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>全部记录（按下次生日排序）</h2>
+        {% if entry_rows %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>姓名</th>
+                <th>类型</th>
+                <th>生日</th>
+                <th>闰月</th>
+                <th>下次日期</th>
+                <th>剩余天数</th>
+                <th>备注</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in entry_rows %}
+              <tr>
+                <td>{{ row.name }}</td>
+                <td>{{ row.calendar_text }}</td>
+                <td>{{ row.birthday_text }}</td>
+                <td>{{ row.leap_text }}</td>
+                <td>{{ row.next_date }}</td>
+                <td>{{ row.days_left }}</td>
+                <td>{{ row.note }}</td>
+                <td>
+                  <div class="action-row">
+                    <a class="btn btn-secondary" href="{{ url_for('index', edit_id=row.id) }}#editor">编辑</a>
+                    <form method="post" action="{{ url_for('delete_entry', entry_id=row.id) }}">
+                      <button class="btn btn-danger" type="submit">删除</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <p class="muted">还没有记录，先添加第一位好友吧。</p>
+        {% endif %}
+      </section>
+    </main>
+  </body>
+</html>

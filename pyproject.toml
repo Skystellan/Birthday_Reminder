@@ -1,0 +1,11 @@
+[project]
+name = "shengri-dengta"
+version = "0.1.0"
+description = "生辰灯塔：支持农历/阳历的好友生日管理与提醒"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "flask>=3.1.0,<4",
+  "lunardate>=0.2.2,<0.3",
+  "pywebview>=5.4,<6",
+]

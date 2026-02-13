@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+.python-version
+birthdays.json
+.DS_Store
+.pycache/
+build/
+dist/
+*.spec
+assets/AppIcon.iconset/
+assets/app_icon_source.png
