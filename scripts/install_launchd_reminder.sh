@@ -9,6 +9,18 @@ STATE_PATH="$APP_SUPPORT_DIR/notify_state.json"
 PLIST_PATH="$HOME/Library/LaunchAgents/${LABEL}.plist"
 HOUR="${1:-9}"
 MINUTE="${2:-0}"
+if [ -x "$HOME/.local/bin/uv" ]; then
+  UV_BIN="$HOME/.local/bin/uv"
+elif [ -x "/opt/homebrew/bin/uv" ]; then
+  UV_BIN="/opt/homebrew/bin/uv"
+else
+  UV_BIN="$(command -v uv || true)"
+fi
+
+if [ -z "$UV_BIN" ]; then
+  echo "uv not found in current shell PATH." >&2
+  exit 1
+fi
 
 if ! [[ "$HOUR" =~ ^[0-9]+$ ]] || ! [[ "$MINUTE" =~ ^[0-9]+$ ]]; then
   echo "Hour/minute must be integers." >&2
@@ -33,7 +45,7 @@ cat >"$PLIST_PATH" <<EOF
     <array>
       <string>/bin/zsh</string>
       <string>-lc</string>
-      <string>cd '${PROJECT_DIR}' &amp;&amp; uv run python birthday_reminder.py --db '${DB_PATH}' due --notify --notify-once-per-day --notify-state-file '${STATE_PATH}'</string>
+      <string>cd '${PROJECT_DIR}' &amp;&amp; '${UV_BIN}' run python birthday_reminder.py --db '${DB_PATH}' due --notify --notify-once-per-day --notify-state-file '${STATE_PATH}'</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
@@ -47,7 +59,7 @@ cat >"$PLIST_PATH" <<EOF
     <key>StandardErrorPath</key>
     <string>${APP_SUPPORT_DIR}/launchd.err.log</string>
     <key>RunAtLoad</key>
-    <false/>
+    <true/>
   </dict>
 </plist>
 EOF
