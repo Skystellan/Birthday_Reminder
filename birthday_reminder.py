@@ -197,10 +197,10 @@ def upcoming_entries(
     return sorted(upcoming, key=lambda item: item[0])
 
 
-def send_birthday_notification(
-    names: str,
+def send_daily_notification(
+    title: str,
+    message: str,
     target: dt.date,
-    *,
     once_per_day: bool = False,
     state_path: Path | None = None,
 ) -> bool:
@@ -211,18 +211,35 @@ def send_birthday_notification(
         if state.get("last_notified_date") == target.isoformat():
             return False
 
-    send_notification("生日提醒", f"今天记得祝 {names} 生日快乐")
+    send_notification(title, message)
 
     if once_per_day and state_path is not None:
         save_state(
             state_path,
             {
                 "last_notified_date": target.isoformat(),
-                "last_notified_names": names,
+                "last_notification_title": title,
+                "last_notification_message": message,
                 "updated_at": dt.datetime.now().isoformat(timespec="seconds"),
             },
         )
     return True
+
+
+def send_birthday_notification(
+    names: str,
+    target: dt.date,
+    *,
+    once_per_day: bool = False,
+    state_path: Path | None = None,
+) -> bool:
+    return send_daily_notification(
+        title="生日提醒",
+        message=f"今天记得祝 {names} 生日快乐",
+        target=target,
+        once_per_day=once_per_day,
+        state_path=state_path,
+    )
 
 
 def command_add(args: argparse.Namespace) -> None:
@@ -279,9 +296,26 @@ def command_due(args: argparse.Namespace) -> None:
     entries = load_entries(db_path)
     target = parse_iso_date(args.date) if args.date else dt.date.today()
     due_entries = due_entries_on_date(entries, target)
+    state_path: Path | None = None
+    if args.notify and args.notify_once_per_day:
+        state_path = (
+            Path(args.notify_state_file).expanduser().resolve()
+            if args.notify_state_file
+            else db_path.with_name("notify_state.json")
+        )
 
     if not due_entries:
         print(f"{target.isoformat()} 没有生日提醒。")
+        if args.notify:
+            sent = send_daily_notification(
+                title="生日提醒",
+                message="今天没有生日提醒。",
+                target=target,
+                once_per_day=args.notify_once_per_day,
+                state_path=state_path,
+            )
+            if args.notify_once_per_day and not sent:
+                print(f"{target.isoformat()} 已通知过，跳过重复通知。")
         return
 
     names = "、".join(entry.name for entry in due_entries)
@@ -291,13 +325,6 @@ def command_due(args: argparse.Namespace) -> None:
         print(f"- {entry.name} ({calendar_text} {entry.month:02d}-{entry.day:02d})")
 
     if args.notify:
-        state_path: Path | None = None
-        if args.notify_once_per_day:
-            state_path = (
-                Path(args.notify_state_file).expanduser().resolve()
-                if args.notify_state_file
-                else db_path.with_name("notify_state.json")
-            )
         sent = send_birthday_notification(
             names,
             target,

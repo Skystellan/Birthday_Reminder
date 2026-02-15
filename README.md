@@ -70,7 +70,7 @@ uv run python desktop_app.py
 说明：
 
 - 在应用内嵌窗口中直接显示界面（不依赖浏览器）
-- 启动时会自动检查“今天生日”并触发系统通知（同一天只提醒一次）
+- 启动时会触发每日系统通知：有生日就提醒祝福对象，没有生日也会通知（同一天只提醒一次）
 - 默认数据文件位于 `~/Library/Application Support/生辰灯塔/birthdays.json`
 
 仅测试场景可用无窗口模式：
@@ -130,7 +130,7 @@ dist/生辰灯塔.app
 ./scripts/uninstall_launchd_reminder.sh
 ```
 
-如果你仍然想用 `cron`，可用下面命令：
+如果你仍然想用 `cron`，可用下面命令（每天都会发一条状态通知）：
 
 ```cron
 0 9 * * * /bin/zsh -lc 'cd /Users/skystellan/Documents/New\ project && uv run python birthday_reminder.py --db "$HOME/Library/Application Support/生辰灯塔/birthdays.json" due --notify --notify-once-per-day --notify-state-file "$HOME/Library/Application Support/生辰灯塔/notify_state.json"'

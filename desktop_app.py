@@ -14,7 +14,7 @@ from threading import Event, Thread
 
 from werkzeug.serving import make_server
 
-from birthday_reminder import due_entries_on_date, load_entries, send_birthday_notification
+from birthday_reminder import due_entries_on_date, load_entries, send_daily_notification
 from web_app import PROJECT_NAME, create_app
 
 try:
@@ -117,16 +117,19 @@ def run_webview(url: str, stop_event: Event) -> None:
     stop_event.set()
 
 
-def startup_notify_if_due(db_path: Path, state_path: Path) -> None:
+def startup_notify_daily(db_path: Path, state_path: Path) -> None:
     entries = load_entries(db_path)
     today = dt.date.today()
     due_entries = due_entries_on_date(entries, today)
-    if not due_entries:
-        return
-    names = "、".join(entry.name for entry in due_entries)
-    send_birthday_notification(
-        names,
-        today,
+    if due_entries:
+        names = "、".join(entry.name for entry in due_entries)
+        message = f"今天记得祝 {names} 生日快乐"
+    else:
+        message = "今天没有生日提醒。"
+    send_daily_notification(
+        title="生日提醒",
+        message=message,
+        target=today,
         once_per_day=True,
         state_path=state_path,
     )
@@ -153,7 +156,7 @@ def main() -> None:
         pass
 
     if not args.skip_startup_notify:
-        startup_notify_if_due(db_path, state_path)
+        startup_notify_daily(db_path, state_path)
 
     try:
         if args.headless:
