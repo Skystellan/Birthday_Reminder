@@ -9,6 +9,7 @@ STATE_PATH="$APP_SUPPORT_DIR/notify_state.json"
 PLIST_PATH="$HOME/Library/LaunchAgents/${LABEL}.plist"
 HOUR="${1:-9}"
 MINUTE="${2:-0}"
+AHEAD_DAYS="${3:-7}"
 if [ -x "$HOME/.local/bin/uv" ]; then
   UV_BIN="$HOME/.local/bin/uv"
 elif [ -x "/opt/homebrew/bin/uv" ]; then
@@ -24,6 +25,10 @@ fi
 
 if ! [[ "$HOUR" =~ ^[0-9]+$ ]] || ! [[ "$MINUTE" =~ ^[0-9]+$ ]]; then
   echo "Hour/minute must be integers." >&2
+  exit 1
+fi
+if ! [[ "$AHEAD_DAYS" =~ ^[0-9]+$ ]]; then
+  echo "Ahead days must be an integer >= 0." >&2
   exit 1
 fi
 if [ "$HOUR" -lt 0 ] || [ "$HOUR" -gt 23 ] || [ "$MINUTE" -lt 0 ] || [ "$MINUTE" -gt 59 ]; then
@@ -45,7 +50,7 @@ cat >"$PLIST_PATH" <<EOF
     <array>
       <string>/bin/zsh</string>
       <string>-lc</string>
-      <string>cd '${PROJECT_DIR}' &amp;&amp; '${UV_BIN}' run python birthday_reminder.py --db '${DB_PATH}' due --notify --notify-once-per-day --notify-state-file '${STATE_PATH}'</string>
+      <string>cd '${PROJECT_DIR}' &amp;&amp; '${UV_BIN}' run python birthday_reminder.py --db '${DB_PATH}' due --ahead-days '${AHEAD_DAYS}' --notify --notify-once-per-day --notify-state-file '${STATE_PATH}'</string>
     </array>
     <key>StartCalendarInterval</key>
     <dict>
@@ -69,3 +74,4 @@ launchctl load "$PLIST_PATH"
 
 echo "Installed launchd reminder: $PLIST_PATH"
 echo "Schedule: ${HOUR}:${MINUTE}"
+echo "Ahead days: ${AHEAD_DAYS}"

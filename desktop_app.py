@@ -14,7 +14,12 @@ from threading import Event, Thread
 
 from werkzeug.serving import make_server
 
-from birthday_reminder import due_entries_on_date, load_entries, send_daily_notification
+from birthday_reminder import (
+    DEFAULT_AHEAD_DAYS,
+    build_daily_notification_message,
+    load_entries,
+    send_daily_notification,
+)
 from web_app import PROJECT_NAME, create_app
 
 try:
@@ -79,6 +84,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--db", help="生日数据库路径（默认存到用户目录）")
     parser.add_argument("--port", type=int, help="固定端口（默认自动分配）")
     parser.add_argument("--headless", action="store_true", help="无窗口模式（仅测试用）")
+    parser.add_argument(
+        "--ahead-days",
+        type=int,
+        default=DEFAULT_AHEAD_DAYS,
+        help=f"每日通知额外预告未来 N 天（默认 {DEFAULT_AHEAD_DAYS}）",
+    )
     parser.add_argument("--skip-startup-notify", action="store_true", help="启动时不自动检查生日通知")
     return parser.parse_args()
 
@@ -117,15 +128,10 @@ def run_webview(url: str, stop_event: Event) -> None:
     stop_event.set()
 
 
-def startup_notify_daily(db_path: Path, state_path: Path) -> None:
+def startup_notify_daily(db_path: Path, state_path: Path, ahead_days: int) -> None:
     entries = load_entries(db_path)
     today = dt.date.today()
-    due_entries = due_entries_on_date(entries, today)
-    if due_entries:
-        names = "、".join(entry.name for entry in due_entries)
-        message = f"今天记得祝 {names} 生日快乐"
-    else:
-        message = "今天没有生日提醒。"
+    message = build_daily_notification_message(entries, today, ahead_days=ahead_days)
     send_daily_notification(
         title="生日提醒",
         message=message,
@@ -156,7 +162,7 @@ def main() -> None:
         pass
 
     if not args.skip_startup_notify:
-        startup_notify_daily(db_path, state_path)
+        startup_notify_daily(db_path, state_path, args.ahead_days)
 
     try:
         if args.headless:

@@ -33,7 +33,7 @@ uv run python birthday_reminder.py remove --id <ID>
 提醒相关：
 
 ```bash
-uv run python birthday_reminder.py due --notify
+uv run python birthday_reminder.py due --ahead-days 7 --notify
 uv run python birthday_reminder.py upcoming --days 30
 ```
 
@@ -70,7 +70,7 @@ uv run python desktop_app.py
 说明：
 
 - 在应用内嵌窗口中直接显示界面（不依赖浏览器）
-- 启动时会触发每日系统通知：有生日就提醒祝福对象，没有生日也会通知（同一天只提醒一次）
+- 启动时会触发每日系统通知：当天生日 + 未来 7 天预告（同一天只提醒一次）
 - 默认数据文件位于 `~/Library/Application Support/生辰灯塔/birthdays.json`
 
 仅测试场景可用无窗口模式：
@@ -112,16 +112,16 @@ dist/生辰灯塔.app
 
 ## 6) 自动提醒（launchd）
 
-推荐使用 macOS `launchd`（默认每天 09:00）：
+推荐使用 macOS `launchd`（默认每天 09:00，预告未来 7 天）：
 
 ```bash
 ./scripts/install_launchd_reminder.sh
 ```
 
-自定义时间（例如每天 08:30）：
+自定义时间（例如每天 08:30，预告未来 10 天）：
 
 ```bash
-./scripts/install_launchd_reminder.sh 8 30
+./scripts/install_launchd_reminder.sh 8 30 10
 ```
 
 移除自动提醒：
@@ -133,7 +133,7 @@ dist/生辰灯塔.app
 如果你仍然想用 `cron`，可用下面命令（每天都会发一条状态通知）：
 
 ```cron
-0 9 * * * /bin/zsh -lc 'cd /Users/skystellan/Documents/New\ project && uv run python birthday_reminder.py --db "$HOME/Library/Application Support/生辰灯塔/birthdays.json" due --notify --notify-once-per-day --notify-state-file "$HOME/Library/Application Support/生辰灯塔/notify_state.json"'
+0 9 * * * /bin/zsh -lc 'cd /Users/skystellan/Documents/New\ project && uv run python birthday_reminder.py --db "$HOME/Library/Application Support/生辰灯塔/birthdays.json" due --ahead-days 7 --notify --notify-once-per-day --notify-state-file "$HOME/Library/Application Support/生辰灯塔/notify_state.json"'
 ```
 
 编辑 crontab：
@@ -162,7 +162,7 @@ crontab -e
 uv run python birthday_reminder.py --db /path/to/your_birthdays.json list
 uv run python web_app.py --db /path/to/your_birthdays.json
 uv run python desktop_app.py --db /path/to/your_birthdays.json
-uv run python birthday_reminder.py --db /path/to/your_birthdays.json due --notify --notify-once-per-day
+uv run python birthday_reminder.py --db /path/to/your_birthdays.json due --ahead-days 7 --notify --notify-once-per-day
 ```
 
 ## 8) 规则说明

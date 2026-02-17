@@ -20,6 +20,7 @@ except ImportError:  # pragma: no cover - optional dependency in runtime
 
 
 DEFAULT_DB_PATH = Path(__file__).with_name("birthdays.json")
+DEFAULT_AHEAD_DAYS = 7
 
 
 @dataclass
@@ -159,9 +160,11 @@ def send_notification(title: str, message: str) -> None:
         print("当前系统非 macOS，跳过桌面通知。")
         return
     esc_title = title.replace("\\", "\\\\").replace('"', '\\"')
-    esc_msg = message.replace("\\", "\\\\").replace('"', '\\"')
+    # macOS 通知正文用单行更稳定，避免 AppleScript 因换行符解析失败。
+    single_line = " | ".join(part.strip() for part in message.splitlines() if part.strip())
+    esc_msg = single_line.replace("\\", "\\\\").replace('"', '\\"')
     script = f'display notification "{esc_msg}" with title "{esc_title}"'
-    subprocess.run(["osascript", "-e", script], check=False)
+    subprocess.run(["osascript", "-l", "AppleScript", "-e", script], check=False)
 
 
 def format_calendar(entry: Entry) -> str:
@@ -195,6 +198,55 @@ def upcoming_entries(
         if nxt - start <= within:
             upcoming.append((nxt, entry))
     return sorted(upcoming, key=lambda item: item[0])
+
+
+def upcoming_future_entries(
+    entries: list[Entry],
+    start: dt.date,
+    days: int,
+) -> list[tuple[dt.date, Entry]]:
+    if days <= 0:
+        return []
+    return [item for item in upcoming_entries(entries, start, days) if item[0] > start]
+
+
+def format_upcoming_summary(
+    upcoming: list[tuple[dt.date, Entry]],
+    start: dt.date,
+    max_items: int = 3,
+) -> str:
+    if not upcoming:
+        return ""
+    parts: list[str] = []
+    for when, entry in upcoming[:max_items]:
+        days_left = (when - start).days
+        parts.append(f"{days_left}天后({when.strftime('%m-%d')}) {entry.name}")
+    if len(upcoming) > max_items:
+        parts.append(f"等{len(upcoming)}位")
+    return "；".join(parts)
+
+
+def build_daily_notification_message(
+    entries: list[Entry],
+    target: dt.date,
+    ahead_days: int = 0,
+) -> str:
+    due_today = due_entries_on_date(entries, target)
+    parts: list[str] = []
+    if due_today:
+        names = "、".join(entry.name for entry in due_today)
+        parts.append(f"今天过生日: {names}")
+    else:
+        parts.append("今天没有生日提醒")
+
+    future = upcoming_future_entries(entries, target, ahead_days)
+    if ahead_days > 0:
+        if future:
+            parts.append(f"未来{ahead_days}天: {format_upcoming_summary(future, target)}")
+        else:
+            parts.append(f"未来{ahead_days}天没有生日")
+
+    return "。".join(parts) + "。"
 
 
 def send_daily_notification(
@@ -296,6 +348,7 @@ def command_due(args: argparse.Namespace) -> None:
     entries = load_entries(db_path)
     target = parse_iso_date(args.date) if args.date else dt.date.today()
     due_entries = due_entries_on_date(entries, target)
+    future_entries = upcoming_future_entries(entries, target, args.ahead_days)
     state_path: Path | None = None
     if args.notify and args.notify_once_per_day:
         state_path = (
@@ -306,28 +359,32 @@ def command_due(args: argparse.Namespace) -> None:
 
     if not due_entries:
         print(f"{target.isoformat()} 没有生日提醒。")
-        if args.notify:
-            sent = send_daily_notification(
-                title="生日提醒",
-                message="今天没有生日提醒。",
-                target=target,
-                once_per_day=args.notify_once_per_day,
-                state_path=state_path,
-            )
-            if args.notify_once_per_day and not sent:
-                print(f"{target.isoformat()} 已通知过，跳过重复通知。")
-        return
+    else:
+        names = "、".join(entry.name for entry in due_entries)
+        print(f"{target.isoformat()} 今天过生日: {names}")
+        for entry in due_entries:
+            calendar_text = format_calendar(entry)
+            print(f"- {entry.name} ({calendar_text} {entry.month:02d}-{entry.day:02d})")
 
-    names = "、".join(entry.name for entry in due_entries)
-    print(f"{target.isoformat()} 今天过生日: {names}")
-    for entry in due_entries:
-        calendar_text = format_calendar(entry)
-        print(f"- {entry.name} ({calendar_text} {entry.month:02d}-{entry.day:02d})")
+    if args.ahead_days > 0:
+        if not future_entries:
+            print(f"未来 {args.ahead_days} 天没有生日提醒。")
+        else:
+            print(f"未来 {args.ahead_days} 天生日预告:")
+            for when, entry in future_entries:
+                calendar_text = format_calendar(entry)
+                days_left = (when - target).days
+                print(
+                    f"- {when.isoformat()} ({days_left}天后) {entry.name} "
+                    f"({calendar_text} {entry.month:02d}-{entry.day:02d})"
+                )
 
     if args.notify:
-        sent = send_birthday_notification(
-            names,
-            target,
+        message = build_daily_notification_message(entries, target, ahead_days=args.ahead_days)
+        sent = send_daily_notification(
+            title="生日提醒",
+            message=message,
+            target=target,
             once_per_day=args.notify_once_per_day,
             state_path=state_path,
         )
@@ -379,6 +436,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     due_parser = subparsers.add_parser("due", help="查看某天是否有人生日")
     due_parser.add_argument("--date", help="目标日期（YYYY-MM-DD，默认今天）")
+    due_parser.add_argument(
+        "--ahead-days",
+        type=int,
+        default=0,
+        help="额外预告未来 N 天生日（默认 0，即仅看当天）",
+    )
     due_parser.add_argument("--notify", action="store_true", help="同时触发桌面通知（macOS）")
     due_parser.add_argument(
         "--notify-once-per-day",
